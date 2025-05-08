@@ -1,3 +1,5 @@
+A faire: 
+
 Human breast cancer(TCGA-BRCA): - j'ai  pas regarder la proportion de N (unknown) -> "(i.e., > 90 kb non-N bases)" . j'ai caculer la proportion de GC partout du chromo 1 a 22 
 
 
