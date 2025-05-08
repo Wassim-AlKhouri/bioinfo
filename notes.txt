@@ -1,1 +1,6 @@
-Human breast cancer(TCGA-BRCA): - j'ai pas pas regarder la proportion de N (unknown) -> " (i.e., > 90 kb non-N bases)" . j'ai caculer la proportion de GC partout du chromo 1 a 22 
+Human breast cancer(TCGA-BRCA): - j'ai  pas regarder la proportion de N (unknown) -> "(i.e., > 90 kb non-N bases)" . j'ai caculer la proportion de GC partout du chromo 1 a 22 
+
+
+
+Arabidopsis thaliana (TAIR10): - j'ai  pas regarder la proportion de N (unknown) 
+                               -  Genome plus petit faire des windows plut petit comme pour Fruit fly ? 
