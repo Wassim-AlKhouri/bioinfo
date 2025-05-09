@@ -107,7 +107,8 @@ gc_windows <- function(dna, chr_name, bin = 1e5) {
          start     = start(ranges),
          end       = end(ranges),
          length_bp = width(ranges),
-         GC_count  = gc)
+         GC_count  = gc,
+         GC_prop    = gc/width(ranges) )
 }
 
 
