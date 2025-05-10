@@ -42,12 +42,41 @@ bins <- tileGenome(
   cut.last.tile.in.chrom = TRUE # drop if samaler than 100 kb at the end of each chromo 
 )
 
+
+seqs   <- getSeq(BSgenome.Hsapiens.UCSC.hg38, bins)
+n_counts <- letterFrequency(seqs, letters="N")
+bin_widths <- width(bins)  
+nonN_bases <- bin_widths - n_counts
+good_bins <- bins[nonN_bases > 90e3]
+sum((nonN_bases > 90e3 ) == FALSE )
+
 # 5. Turn your SNV list into a GRanges
 snv_gr <- GRanges(
   seqnames = snvs$chr,
   ranges   = IRanges(start=snvs$pos, end = snvs$pos)
 )
+# 6. Count SNVs per 100 kb bin
+counts_vec <- countOverlaps(good_bins, snv_gr)
 
+df2 <- data.frame(
+  seqnames   = as.character(seqnames(good_bins)),
+  start      = start(good_bins),
+  end        = end(good_bins),
+  snv_count  = counts_vec
+)
+
+write.table(
+  df2,
+  file      =paste0("/Volumes/T7 Shield/oHMMed /DATA/BREAST/snv_counts_100kb_windows_",sample_id,".tsv"),
+  sep       = "\t",
+  quote     = FALSE,
+  row.names = FALSE,
+  col.names = TRUE
+)
+
+
+
+######################################
 # 6. Count SNVs per 100 kb bin
 counts_vec <- countOverlaps(bins, snv_gr)
 
