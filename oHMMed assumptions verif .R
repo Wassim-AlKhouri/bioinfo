@@ -4,7 +4,7 @@
 
 ################# Article verification ############
 
-df <- read.table("~/Desktop/bioinf/M2/methods bionfo /GenomeAnnotations/MouseAnnotation.txt",
+df <- read.table("data/original/GenomeAnnotations (paper)/GenomeAnnotations/MouseAnnotation.txt",
                  header = TRUE, 
                  sep="")
 gc <- df$GC_PROPORTION
@@ -39,7 +39,7 @@ print(ft)
 
 ############ Breast cancer #############
 
-data <- read.table('/Volumes/T7 Shield/oHMMed /DATA/BREAST/100KB_data /snv_counts_100kb_windows_TCGA-BH-A201-01A-11D-A14K-09.tsv',
+data <- read.table('data/treated data/breast_cancer/snv_counts_100kb_windows_TCGA-BH-A201-01A-11D-A14K-09.tsv',
                    sep = "\t",header = TRUE )
 counts <- data$snv_count
 counts_log <- log1p(counts)
@@ -83,7 +83,7 @@ for(i in 1:5){
 
 
 
-data <- read.table('/Users/godinmax/Desktop/bioinf/M2/methods bionfo /MAX_WAS/bioinfo/TAIR10_chr1-5_GC_100KB.tsv',
+data <- read.table('data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB.tsv',
                    sep = "\t",header = TRUE )
 counts <- data$GC_prop
 
