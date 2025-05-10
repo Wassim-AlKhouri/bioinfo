@@ -24,7 +24,11 @@ gc_df <- read.table(
   "data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB.tsv",
   header = TRUE, sep = "\t"
 )
-gc_prop <- gc_df$GC_prop                           # numeric in [0,1]
+
+# ---- NEW LINE ----  unify column header with SNV table
+if ("chr" %in% names(gc_df)) names(gc_df)[names(gc_df) == "chr"] <- "seqnames"
+
+gc_prop <- gc_df$GC_prop
 
 
 ## ---------------------------------------------------------------------------
@@ -59,8 +63,8 @@ fit_snv <- hmm_mcmc_gamma_poisson(
   prior_T      = prior_T_counts,
   prior_betas  = prior_betas,
   prior_alpha  = prior_alpha,
-  iter         = 8000,
-  warmup       = 2000,
+  iter         = 80,
+  warmup       = 20,
   thin         = 10,
   print_params = FALSE,     # turn on if you like to watch the chain
   verbose      = TRUE
@@ -72,8 +76,8 @@ fit_gc <- hmm_mcmc_normal(
   prior_T      = prior_T_gc,
   prior_means  = prior_means,
   prior_sd     = prior_sd,
-  iter         = 8000,
-  warmup       = 2000,
+  iter         = 80,
+  warmup       = 20,
   thin         = 10,
   print_params = FALSE,
   verbose      = TRUE
@@ -91,56 +95,56 @@ ggmcmc::ggs_traceplot(convert_to_ggmcmc(fit_snv, pattern = "beta"))
 ggmcmc::ggs_traceplot(convert_to_ggmcmc(fit_gc,  pattern = "mean"))
 
 
-## ---------------------------------------------------------------------------
-## 5.  MOST-LIKELY STATE PER WINDOW  +  WRITE BED-LIKE TRACKS
-## ---------------------------------------------------------------------------
-# --- SNV counts --------------------------------------------------------------
-post_snv   <- posterior_prob_gamma_poisson(fit_snv)           # windows × K
-state_snv  <- apply(post_snv, 1, which.max)
-snv_df$state <- factor(state_snv, levels = 1:fit_snv$info$n_states)
+##############################################################################
+# 5.  MOST-LIKELY STATE PER WINDOW  +  WRITE BED-LIKE TRACKS
+##############################################################################
+
+## ---------- SNV counts (gamma-Poisson) ------------------------------------
+state_snv <- fit_snv$estimates$posterior_states               # factor (L)
+post_snv  <- fit_snv$estimates$posterior_states_prob          # L × K matrix
+
+snv_df$state <- state_snv
 
 write.table(
   snv_df[, c("seqnames", "start", "end", "snv_count", "state")],
   file      = "data/treated data/breast_cancer/TCGA-BH-A201-01A-11D-A14K-09_oHMMed_K4.bed",
-  sep       = "\t",
-  quote     = FALSE,
-  row.names = FALSE
+  sep       = "\t", quote = FALSE, row.names = FALSE
 )
 
-# --- Arabidopsis GC ----------------------------------------------------------
-post_gc   <- posterior_prob_normal(fit_gc)
-state_gc  <- apply(post_gc, 1, which.max)
-gc_df$state <- factor(state_gc, levels = 1:fit_gc$info$n_states)
+## ---------- Arabidopsis GC (normal) ---------------------------------------
+state_gc <- fit_gc$estimates$posterior_states
+post_gc  <- fit_gc$estimates$posterior_states_prob
+
+gc_df$state <- state_gc
 
 write.table(
   gc_df[, c("seqnames", "start", "end", "GC_prop", "state")],
   file      = "data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB_oHMMed_K3.bed",
-  sep       = "\t",
-  quote     = FALSE,
-  row.names = FALSE
+  sep       = "\t", quote = FALSE, row.names = FALSE
 )
+
 
 
 ## ---------------------------------------------------------------------------
 ## 6.  OPTIONAL: FIT ALTERNATIVE K AND COMPARE
 ## ---------------------------------------------------------------------------
-altK <- lapply(c(3,5), function(k) {
-  hmm_mcmc_gamma_poisson(counts_raw,
-                         prior_T = generate_random_T(k),
-                         prior_betas = rep(mean(prior_betas), k),
-                         prior_alpha = prior_alpha,
-                         iter = 8000, warmup = 2000, thin = 10,
-                         print_params = FALSE, verbose = FALSE)
-})
-K3 <- altK[[1]] ; K5 <- altK[[2]]
-
-comp_snv <- data.frame(
-  K        = c(3,4,5),
-  logLik   = c(mean(K3$estimates$log_likelihood),
-               mean(fit_snv$estimates$log_likelihood),
-               mean(K5$estimates$log_likelihood)),
-  entropy  = c(K3$estimates$segmentation_entropy,
-               fit_snv$estimates$segmentation_entropy,
-               K5$estimates$segmentation_entropy)
-)
-print(comp_snv, row.names = FALSE)
+#altK <- lapply(c(3,5), function(k) {
+#  hmm_mcmc_gamma_poisson(counts_raw,
+#                         prior_T = generate_random_T(k),
+#                         prior_betas = rep(mean(prior_betas), k),
+#                         prior_alpha = prior_alpha,
+#                         iter = 80, warmup = 20, thin = 10,
+#                         print_params = FALSE, verbose = FALSE)
+#})
+#K3 <- altK[[1]] ; K5 <- altK[[2]]
+#
+#comp_snv <- data.frame(
+#  K        = c(3,4,5),
+#  logLik   = c(mean(K3$estimates$log_likelihood),
+#               mean(fit_snv$estimates$log_likelihood),
+#               mean(K5$estimates$log_likelihood)),
+#  entropy  = c(K3$estimates$segmentation_entropy,
+#               fit_snv$estimates$segmentation_entropy,
+#               K5$estimates$segmentation_entropy)
+#)
+#print(comp_snv, row.names = FALSE)
