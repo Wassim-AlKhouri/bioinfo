@@ -1,6 +1,7 @@
 library(maftools)        # to read MAF
 library(GenomicRanges)   # for windows & counting
 library(BSgenome.Hsapiens.UCSC.hg38)
+library(GenomicRanges)
 # BiocManager::install("BSgenome.Hsapiens.UCSC.hg38")
 
 
@@ -123,6 +124,55 @@ print(gc_table, n = 8)
 write.table(
   gc_table,
   file      =paste0('/Volumes/T7 Shield/oHMMed /DATA/arabidopsis/100KB_data/TAIR10_chr1-5_GC_100KB.tsv'),
+  sep       = "\t",
+  quote     = FALSE,
+  row.names = FALSE,
+  col.names = TRUE
+)
+
+
+
+
+
+########## version  > 90 kb non-N bases ######### 
+
+library(Biostrings)
+library(IRanges)
+library(dplyr)
+
+gc_windows <- function(dna, chr_name, bin = 1e5) {
+  starts  <- seq(1, length(dna), by = bin)
+  ranges  <- IRanges(starts, width = pmin(bin, length(dna) - starts + 1))
+  v       <- Views(dna, ranges)
+  
+  # total GC count as before
+  gc      <- rowSums(letterFrequency(v, c("G", "C")))
+  # count of Ns in each window
+  n_count <- letterFrequency(v, "N")
+  # compute non-N bases per window
+  nonN    <- width(ranges) - n_count
+  
+  tibble(
+    chr         = chr_name,
+    start       = start(ranges),
+    end         = end(ranges),
+    width       = width(ranges),
+    N_count     = n_count,
+    nonN_bases  = nonN,
+    GC_count    = gc,
+    GC_prop     = gc/nonN
+  ) %>%
+    # keep only windows with >90 kb non-N
+    filter(nonN_bases > 90e3)
+}
+
+
+gc_table <- bind_rows(lapply(seq_along(nuclear), function(i)
+  gc_windows(nuclear[[i]], names(nuclear)[i])))
+
+write.table(
+  gc_table,
+  file      =paste0('/Users/godinmax/Desktop/bioinf/M2/methods bionfo /MAX_WAS/bioinfo/TAIR10_chr1-5_GC_100KB.tsv'),
   sep       = "\t",
   quote     = FALSE,
   row.names = FALSE,

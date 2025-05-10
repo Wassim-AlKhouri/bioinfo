@@ -9,4 +9,4 @@ Human breast cancer(TCGA-BRCA): - j'ai  pas regarder la proportion de N (unknown
 Arabidopsis thaliana (TAIR10): - j'ai  pas regarder la proportion de N (unknown) 
                                -  Genome plus petit faire des windows plut petit comme pour Fruit fly ? 
                                - verifier la core assumption, y a til de l'autocorelation 
-                               - verifier si distribution match normal
+                               - verifier si distribution match normal -> faire un Shapiro-Wilk test ? 
