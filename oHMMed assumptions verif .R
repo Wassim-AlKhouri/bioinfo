@@ -18,11 +18,12 @@ hist(gc,
      breaks = 100,               # number of bins; adjust to taste
      freq   = FALSE,           # density rather than counts
      col    = "lightgray",
-     main   = "Distribution of SNV-count (Arabidopsis) ",
-     xlab   = "log SNV count")
+     main   = "Distribution of SNV-count (mouse) ",
+     xlab   = "GC count")
 
-
-
+set.seed(2)
+gc.sub <- sample(gc, 5000)
+shapiro.test(gc.sub)
 
 
 
@@ -57,11 +58,29 @@ hist(counts_log,
 
 
 d_obs   <- diff(counts)
+
+hist(d_obs,
+     breaks = 100,               # number of bins; adjust to taste
+     freq   = FALSE,           # density rather than counts
+     col    = "lightgray",
+     main   = "Pairwise differences in average SNV-count ",
+     xlab   = "differences in SNV-count frequency ")
+
 var_obs <- var(d_obs)
+var_obs
 
-
-
-
+set.seed(123)
+d_rand   <- diff(sample(counts))
+var_rand <- var(d_rand)
+ft <- var.test(d_obs, d_rand)
+print(var_rand)
+print(ft)
+hist(d_rand,
+     breaks = 50,
+     freq   = FALSE,
+     col    = rgb(1,1,1,0.4),   # semi-transparent white
+     border = "white",          # white outline
+     add    = TRUE)
 
 
 
@@ -70,6 +89,7 @@ for(i in 1:5){
   d_rand   <- diff(sample(counts))
   var_rand <- var(d_rand)
   ft <- var.test(d_obs, d_rand)
+  print(var_rand)
   print(ft)
 }
 
@@ -88,21 +108,47 @@ data <- read.table('data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB.tsv',
 counts <- data$GC_prop
 
 hist(counts,
-     breaks = 100,               # number of bins; adjust to taste
+     breaks = 50,               # number of bins; adjust to taste
      freq   = FALSE,           # density rather than counts
      col    = "lightgray",
-     main   = "Distribution of SNV-count (Arabidopsis) ",
-     xlab   = "SNV count")
+     main   = "Distribution of SNV-count ",
+     xlab   = "GC count")
 
 
 d_obs   <- diff(counts)
+
 var_obs <- var(d_obs)
 var_obs
+
+hist(d_obs,
+     breaks = 50,               # number of bins; adjust to taste
+     freq   = FALSE,           # density rather than counts
+     col    = "lightgray",
+     main   = "Pairwise differences in average GC proportion  ",
+     xlab   = "differences in GC proportion ")
+
+
+set.seed(123)
+d_rand   <- diff(sample(counts))
+var_rand <- var(d_rand)
+print(var_rand)
+ft <- var.test(d_obs, d_rand)
+print(ft)
+
+hist(d_rand,
+     breaks = 50,
+     freq   = FALSE,
+     col    = rgb(1,1,1,0.4),   # semi-transparent white
+     border = "white",          # white outline
+     add    = TRUE)
+
+
 
 for(i in 1:5){
   set.seed(123+i)
   d_rand   <- diff(sample(counts))
   var_rand <- var(d_rand)
+  print(var_rand)
   ft <- var.test(d_obs, d_rand)
   print(ft)
 }
