@@ -148,3 +148,52 @@ write.table(
 #               K5$estimates$segmentation_entropy)
 #)
 #print(comp_snv, row.names = FALSE)
+
+
+
+#6.b sweep over k and plot mean LOG-LIKELIHOOD 
+# Arabidopsis 
+library(ggplot2)
+
+states <- 2:9
+
+fits <- lapply(states, function(k) {
+  set.seed(123)
+  print(paste0("calculation for ",k," number of states"))
+  hmm_mcmc_normal(gc_prop,
+                  prior_T = generate_random_T(k),
+                  prior_means = as.numeric(
+                    quantile(gc_prop,probs = seq(0.2, 0.8,length.out = k))),
+                  prior_sd = prior_sd,
+                  iter = 125, warmup = 20, thin = 10,
+                  print_params = FALSE, verbose = FALSE)
+  
+})
+
+
+loglik_gc_summary <- data.frame(
+  K        = states,
+  MeanLL   = sapply(fits, function(f) mean(f$estimates$log_likelihood)),
+  MedianLL = sapply(fits, function(f) median(f$estimates$log_likelihood))
+)
+
+ggplot(loglik_gc_summary, aes(x = K)) +
+  geom_line(aes(y = MeanLL),    color = "steelblue", size = 1) +
+  geom_point(aes(y = MeanLL),   color = "steelblue", size = 2) +
+  geom_line(aes(y = MedianLL),  linetype = "dashed", color = "darkorange", size = 1) +
+  geom_point(aes(y = MedianLL), color = "darkorange", size = 2) +
+  scale_x_continuous(breaks = states) +
+  labs(
+    x     = "Number of hidden states (K)",
+    y     = "Log-likelihood",
+    title = "Mean (blue) and Median (orange) log-likelihood vs. K\n(Arabidopsis GC, normal emissions)"
+  ) +
+  theme_bw()
+
+
+
+plot(fits[[1]])
+
+for (i in seq_along(fits)) {
+  plot(fits[[i]], main = paste0("oHMMed diagnostics — K = ", states[i]))
+}
