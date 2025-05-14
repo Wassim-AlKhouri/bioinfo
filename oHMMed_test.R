@@ -185,8 +185,7 @@ ggplot(loglik_gc_summary, aes(x = K)) +
   scale_x_continuous(breaks = states) +
   labs(
     x     = "Number of hidden states (K)",
-    y     = "Log-likelihood",
-    title = "Mean (blue) and Median (orange) log-likelihood vs. K\n(Arabidopsis GC, normal emissions)"
+    y     = "mean/ median Log-likelihood"
   ) +
   theme_bw()
 
