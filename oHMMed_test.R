@@ -1,72 +1,99 @@
-################################################################################
-# oHMMed on (i) breast-cancer SNV counts  |  (ii) Arabidopsis GC proportion   #
-# --------------------------------------------------------------------------- #
-#  paths assume you are inside the project root; tweak if needed              #
-################################################################################
+###############################################################################
+# oHMMed example workflow
+#  ├─ (i) SNV counts in 100-kb breast-cancer windows  → gamma–Poisson HMM
+#  └─ (ii) Arabidopsis GC proportion                → Gaussian HMM
+# -----------------------------------------------------------------------------
+#  The script is robust to K ≥ 2 … 9; empty-state crashes are avoided by
+#  (1) using a strictly stochastic, near-diagonal transition matrix and
+#  (2) seeding new states with sensible emission priors.
+###############################################################################
 
-if (!requireNamespace("oHMMed", quietly = TRUE)) {
-  install.packages("oHMMed")              # CRAN 2024-04-19
+## ────────────────────────────────────────────────────────────────────────────
+## 0.  PACKAGES
+## ────────────────────────────────────────────────────────────────────────────
+req_pkgs <- c("oHMMed", "dplyr", "tidyr", "ggplot2", "ggmcmc")
+for (pkg in req_pkgs) {
+  if (!requireNamespace(pkg, quietly = TRUE)) install.packages(pkg)
+  library(pkg, character.only = TRUE)
 }
-library(oHMMed)
-library(ggmcmc)                           # plotting helpers
 
-## ---------------------------------------------------------------------------
-## 1.  LOAD THE WINDOW-LEVEL FEATURES YOU CREATED EARLIER
-## ---------------------------------------------------------------------------
+## ────────────────────────────────────────────────────────────────────────────
+## 1.  DATA
+## ────────────────────────────────────────────────────────────────────────────
+# ---- (i) SNV counts ────────────────────────────────────────────────────────
 snv_df <- read.table(
   "data/treated data/breast_cancer/snv_counts_100kb_windows_TCGA-BH-A201-01A-11D-A14K-09.tsv",
   header = TRUE, sep = "\t"
 )
-counts_raw <- as.integer(snv_df$snv_count)        # make sure they are *integers*
-counts_raw <- pmax(counts_raw, 1L)           # avoid zero counts (log(0) = -Inf)
+counts_raw <- as.integer(snv_df$snv_count)
+counts_raw <- pmax(counts_raw, 1L)               # avoid log(0) = –Inf
 
+# ---- (ii) Arabidopsis GC proportion ────────────────────────────────────────
 gc_df <- read.table(
   "data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB.tsv",
   header = TRUE, sep = "\t"
 )
-
-# ---- NEW LINE ----  unify column header with SNV table
 if ("chr" %in% names(gc_df)) names(gc_df)[names(gc_df) == "chr"] <- "seqnames"
-
 gc_prop <- gc_df$GC_prop
 
+## ────────────────────────────────────────────────────────────────────────────
+## 2.  HELPER: SAFE RANDOM TRANSITION MATRIX
+## ────────────────────────────────────────────────────────────────────────────
+generate_random_T <- function(k, self = 0.85) {
+  stopifnot(k >= 2, self > 0, self < 1)
 
-## ---------------------------------------------------------------------------
-## 2.  CHOOSE NUMBER OF HIDDEN STATES  +  BUILD REASONABLE PRIORS
-## ---------------------------------------------------------------------------
-K_counts <- 4                     # try 4 for mutation-rate landscape
-K_gc     <- 3                     # try 3 for GC (low-mid-high)
+  T <- matrix(0, k, k)
+  remain <- 1 - self
 
-### 2a. Priors for the **gamma-Poisson** model  (counts)
-prior_T_counts   <- generate_random_T(K_counts)    # near-diagonal random matrix
-prior_alpha      <- 3                              # single shape prior (fairly vague)
+  for (i in 1:k) {
+    T[i, i] <- self
+    if (i > 1)  T[i, i - 1] <- remain * ifelse(i == k, 1, 0.5)
+    if (i < k)  T[i, i + 1] <- remain * ifelse(i == 1, 1, 0.5)
+  }
 
-# pick K quantiles of the observed counts as prior means,
-# then convert means to (descending) rate parameters  beta = alpha / mean
-mean_q           <- as.numeric(quantile(counts_raw,
-                               probs = seq(0.2, 0.8, length.out = K_counts)))
-prior_betas      <- prior_alpha / sort(mean_q, decreasing = TRUE)
+  # (optional) sanity check – every row must be 1
+  if (any(abs(rowSums(T) - 1) > 1e-12))
+    stop("Internal error: row sums are not 1")
 
-### 2b. Priors for the **normal** model  (GC)
-prior_T_gc       <- generate_random_T(K_gc)
-prior_means      <- as.numeric(quantile(gc_prop,
-                               probs = seq(0.2, 0.8, length.out = K_gc)))
-prior_sd         <- sd(gc_prop)                    # single shared σ prior
+  T
+}
 
+## ────────────────────────────────────────────────────────────────────────────
+## 3.  CHOOSE K AND BUILD PRIORS
+## ────────────────────────────────────────────────────────────────────────────
+K_counts <- 4               # try 4 first; increase only after diagnostics
+K_gc     <- 4
 
-## ---------------------------------------------------------------------------
-## 3.  RUN oHMMed
-## ---------------------------------------------------------------------------
+# --- gamma–Poisson priors (SNV counts) --------------------------------------
+prior_alpha      <- 3
+mean_q           <- quantile(counts_raw,
+                             probs = seq(0.1, 0.9, length.out = K_counts),
+                             names = FALSE)
+prior_betas      <- prior_alpha / sort(pmax(mean_q, 10), decreasing = TRUE)
+prior_T_counts   <- generate_random_T(K_counts, self = 0.85)
+
+# --- Gaussian priors (GC proportion) ----------------------------------------
+prior_sd         <- sd(gc_prop)
+prior_means      <- sort(quantile(gc_prop,
+                                  probs = seq(0.1, 0.9, length.out = K_gc),
+                                  names = FALSE))
+prior_T_gc       <- generate_random_T(K_gc, self = 0.85)
+
+## ────────────────────────────────────────────────────────────────────────────
+## 4.  RUN oHMMed
+## ────────────────────────────────────────────────────────────────────────────
+options(error = recover)    # drop into debugger on any unexpected error
+
 set.seed(42)
 fit_snv <- hmm_mcmc_gamma_poisson(
   data         = counts_raw,
   prior_T      = prior_T_counts,
   prior_betas  = prior_betas,
   prior_alpha  = prior_alpha,
-  iter         = 80,
-  warmup       = 20,
-  thin         = 10,
-  print_params = FALSE,     # turn on if you like to watch the chain
+  iter         = 100,
+  warmup       =   20,
+  thin         =    10,
+  print_params = FALSE,
   verbose      = TRUE
 )
 
@@ -76,123 +103,111 @@ fit_gc <- hmm_mcmc_normal(
   prior_T      = prior_T_gc,
   prior_means  = prior_means,
   prior_sd     = prior_sd,
-  iter         = 80,
-  warmup       = 20,
-  thin         = 10,
+  iter         = 100,
+  warmup       =   20,
+  thin         =    10,
   print_params = FALSE,
   verbose      = TRUE
 )
 
-
-## ---------------------------------------------------------------------------
-## 4.  QUICK DIAGNOSTICS  (optional but highly recommended)
-## ---------------------------------------------------------------------------
-plot(fit_snv)                                # trace- & density plots, LL trace, etc.
-plot(fit_gc)
-
-# If you prefer ggmcmc style:
-ggmcmc::ggs_traceplot(convert_to_ggmcmc(fit_snv, pattern = "beta"))
-ggmcmc::ggs_traceplot(convert_to_ggmcmc(fit_gc,  pattern = "mean"))
-
-
 ##############################################################################
-# 5.  MOST-LIKELY STATE PER WINDOW  +  WRITE BED-LIKE TRACKS
+# 5.  DIAGNOSTICS  +  SAVE EVERY FIGURE
 ##############################################################################
+output_dir <- "data/treated data/plots"          # <- where images will go
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
-## ---------- SNV counts (gamma-Poisson) ------------------------------------
-state_snv <- fit_snv$estimates$posterior_states               # factor (L)
-post_snv  <- fit_snv$estimates$posterior_states_prob          # L × K matrix
+## ---------- 5a. built-in diagnostic plots ----------------------------------
+# oHMMed::plot() returns a grid object; wrap it in a PNG device
+png(file.path(output_dir, "diagnostics_snv_K4.png"),
+    width = 1600, height = 1200, res = 150)
+plot(fit_snv, main = "oHMMed diagnostics — SNV (K = 4)")
+dev.off()
 
-snv_df$state <- state_snv
+png(file.path(output_dir, "diagnostics_gc_K4.png"),
+    width = 1600, height = 1200, res = 150)
+plot(fit_gc,  main = "oHMMed diagnostics — GC (K = 4)")
+dev.off()
 
+## ---------- 5b. ggmcmc trace plots -----------------------------------------
+library(ggmcmc)
+
+p_beta  <- ggs_traceplot(convert_to_ggmcmc(fit_snv, pattern = "beta"))
+p_mean  <- ggs_traceplot(convert_to_ggmcmc(fit_gc,  pattern = "mean"))
+
+ggplot2::ggsave(filename = file.path(output_dir, "trace_beta_snv_K4.png"),
+                plot = p_beta, width = 9, height = 6, dpi = 150)
+ggplot2::ggsave(filename = file.path(output_dir, "trace_mean_gc_K4.png"),
+                plot = p_mean, width = 9, height = 6, dpi = 150)
+
+## ────────────────────────────────────────────────────────────────────────────
+## 6.  MOST-LIKELY STATE PER WINDOW  →  BED-LIKE TRACKS
+## ────────────────────────────────────────────────────────────────────────────
+snv_df$state <- fit_snv$estimates$posterior_states
 write.table(
   snv_df[, c("seqnames", "start", "end", "snv_count", "state")],
   file      = "data/treated data/breast_cancer/TCGA-BH-A201-01A-11D-A14K-09_oHMMed_K4.bed",
   sep       = "\t", quote = FALSE, row.names = FALSE
 )
 
-## ---------- Arabidopsis GC (normal) ---------------------------------------
-state_gc <- fit_gc$estimates$posterior_states
-post_gc  <- fit_gc$estimates$posterior_states_prob
-
-gc_df$state <- state_gc
-
+gc_df$state <- fit_gc$estimates$posterior_states
 write.table(
   gc_df[, c("seqnames", "start", "end", "GC_prop", "state")],
-  file      = "data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB_oHMMed_K3.bed",
+  file      = "data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB_oHMMed_K4.bed",
   sep       = "\t", quote = FALSE, row.names = FALSE
 )
 
-
-
-## ---------------------------------------------------------------------------
-## 6.  OPTIONAL: FIT ALTERNATIVE K AND COMPARE
-## ---------------------------------------------------------------------------
-#altK <- lapply(c(3,5), function(k) {
-#  hmm_mcmc_gamma_poisson(counts_raw,
-#                         prior_T = generate_random_T(k),
-#                         prior_betas = rep(mean(prior_betas), k),
-#                         prior_alpha = prior_alpha,
-#                         iter = 80, warmup = 20, thin = 10,
-#                         print_params = FALSE, verbose = FALSE)
-#})
-#K3 <- altK[[1]] ; K5 <- altK[[2]]
-#
-#comp_snv <- data.frame(
-#  K        = c(3,4,5),
-#  logLik   = c(mean(K3$estimates$log_likelihood),
-#               mean(fit_snv$estimates$log_likelihood),
-#               mean(K5$estimates$log_likelihood)),
-#  entropy  = c(K3$estimates$segmentation_entropy,
-#               fit_snv$estimates$segmentation_entropy,
-#               K5$estimates$segmentation_entropy)
-#)
-#print(comp_snv, row.names = FALSE)
-
-
-
-#6.b sweep over k and plot mean LOG-LIKELIHOOD 
-# Arabidopsis 
-library(ggplot2)
-
+##############################################################################
+# 7.  SWEEP OVER K   +   SAVE EVERY EXTRA PLOT
+##############################################################################
 states <- 2:9
+fits_gc <- vector("list", length(states))
 
-fits <- lapply(states, function(k) {
-  set.seed(123)
-  print(paste0("calculation for ",k," number of states"))
-  hmm_mcmc_normal(gc_prop,
-                  prior_T = generate_random_T(k),
-                  prior_means = as.numeric(
-                    quantile(gc_prop,probs = seq(0.2, 0.8,length.out = k))),
-                  prior_sd = prior_sd,
-                  iter = 125, warmup = 20, thin = 10,
-                  print_params = FALSE, verbose = FALSE)
-  
-})
+for (i in seq_along(states)) {
+  k <- states[i]
+  message("◆ Fitting K = ", k)
+  set.seed(100 + k)
+  fits_gc[[i]] <- hmm_mcmc_normal(
+    data         = gc_prop,
+    prior_T      = generate_random_T(k, self = 0.85),
+    prior_means  = sort(quantile(gc_prop,
+                                 probs = seq(0.1, 0.9, length.out = k),
+                                 names = FALSE)),
+    prior_sd     = prior_sd,
+    iter         = 800, warmup = 160, thin = 10,
+    print_params = FALSE, verbose = FALSE
+  )
 
+  ## save the diagnostic plot for this K
+  png(file.path(output_dir,
+                sprintf("diagnostics_gc_K%02d.png", k)),
+      width = 1600, height = 1200, res = 150)
+  plot(fits_gc[[i]],
+       main = sprintf("oHMMed diagnostics — GC, K = %d", k))
+  dev.off()
+}
 
+## --- log-likelihood summary figure -----------------------------------------
 loglik_gc_summary <- data.frame(
   K        = states,
-  MeanLL   = sapply(fits, function(f) mean(f$estimates$log_likelihood)),
-  MedianLL = sapply(fits, function(f) median(f$estimates$log_likelihood))
+  MeanLL   = vapply(fits_gc, function(f) mean(f$estimates$log_likelihood),
+                    numeric(1)),
+  MedianLL = vapply(fits_gc, function(f) median(f$estimates$log_likelihood),
+                    numeric(1))
 )
 
-ggplot(loglik_gc_summary, aes(x = K)) +
-  geom_line(aes(y = MeanLL),    color = "steelblue", size = 1) +
-  geom_point(aes(y = MeanLL),   color = "steelblue", size = 2) +
-  geom_line(aes(y = MedianLL),  linetype = "dashed", color = "darkorange", size = 1) +
-  geom_point(aes(y = MedianLL), color = "darkorange", size = 2) +
-  scale_x_continuous(breaks = states) +
-  labs(
-    x     = "Number of hidden states (K)",
-    y     = "mean/ median Log-likelihood"
-  ) +
-  theme_bw()
+library(ggplot2)
+p_ll <- ggplot(loglik_gc_summary, aes(x = K)) +
+          geom_line(aes(y = MeanLL),    linewidth = 1) +        # <- linewidth!
+          geom_point(aes(y = MeanLL),   size = 2) +
+          geom_line(aes(y = MedianLL),  linetype = "dashed", linewidth = 1) +
+          geom_point(aes(y = MedianLL), size = 2) +
+          scale_x_continuous(breaks = states) +
+          labs(
+            title = "Arabidopsis GC: mean / median log-likelihood vs. K",
+            x     = "Number of hidden states (K)",
+            y     = "Log-likelihood"
+          ) +
+          theme_bw()
 
-
-
-plot(fits[[1]])
-
-for (i in seq_along(fits)) {
-  plot(fits[[i]], main = paste0("oHMMed diagnostics — K = ", states[i]))
-}
+ggsave(filename = file.path(output_dir, "gc_loglik_vs_K.png"),
+       plot = p_ll, width = 9, height = 6, dpi = 150)
