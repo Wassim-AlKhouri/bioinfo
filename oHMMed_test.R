@@ -252,4 +252,40 @@ prop_df
 
 #### Genome-wide track  
 gc_df$state <- fit_k5$estimates$posterior_states 
+state_cols <- c("1"="#4C72B0",   # AT-rich
+                "2"="#55A868",
+                "3"="#E4BF44",
+                "4"="#C35B72",
+                "5"="#8172B2")   # GC-rich
 
+bed <- gc_df |>
+  dplyr::transmute(seqnames,
+                   start,                   # already 0-based
+                   end,                     # non-inclusive
+                   name      = paste0("S", state),
+                   score     = 0,
+                   strand    = "+",
+                   thickStart = start,      # colour entire block
+                   thickEnd   = end,
+                   itemRgb    = state_cols[as.character(state)])   # hex without '#'
+
+
+
+
+genome_track <- ggplot(gc_df, aes(x = start/1e6,            # Mb on x-axis
+                  y = seqnames,                  # one row per chromosome
+                  fill = factor(state))) +
+  geom_tile(height = 0.8) +                 # 0.8 keeps thin horizontal gaps
+  scale_fill_manual(values = state_cols,
+                    name = "GC state") +
+  scale_y_discrete(limits = paste0("Chr", 1:5)) +
+  labs(x = "Chromosomal position (Mb)",
+       y = NULL,
+       title = "Five-state GC segmentation of the *A. thaliana* genome (100 kb windows)") +
+  theme_bw() +
+  theme(panel.spacing.y = unit(0.1, "lines"),
+        axis.text.y     = element_text(size = 9),
+        legend.position = "right")
+
+ggsave(filename = file.path(output_dir, "Genome-wide track.png"),
+       plot = genome_track, width = 9, height = 6, dpi = 150)
