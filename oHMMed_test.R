@@ -103,7 +103,7 @@ fit_gc <- hmm_mcmc_normal(
   prior_T      = prior_T_gc,
   prior_means  = prior_means,
   prior_sd     = prior_sd,
-  iter         = 100,
+  iter         = 1500,
   warmup       =   20,
   thin         =    10,
   print_params = FALSE,
@@ -197,11 +197,13 @@ loglik_gc_summary <- data.frame(
 
 library(ggplot2)
 p_ll <- ggplot(loglik_gc_summary, aes(x = K)) +
-          geom_line(aes(y = MeanLL),    linewidth = 1) +        # <- linewidth!
-          geom_point(aes(y = MeanLL),   size = 2) +
-          geom_line(aes(y = MedianLL),  linetype = "dashed", linewidth = 1) +
-          geom_point(aes(y = MedianLL), size = 2) +
+          geom_line(aes(y = MeanLL, color = "Mean"),    linewidth = 1) +        # <- linewidth!
+          geom_point(aes(y = MeanLL, color = "Mean"),   size = 2) +
+          geom_line(aes(y = MedianLL, color = "Median"),  linetype = "dashed", linewidth = 1) +
+          geom_point(aes(y = MedianLL, color = "Median"), size = 2) +
           scale_x_continuous(breaks = states) +
+          scale_color_manual(values = c(Mean = "steelblue",   # teal
+                                Median = "darkorange"))+ # orange
           labs(
             title = "Arabidopsis GC: mean / median log-likelihood vs. K",
             x     = "Number of hidden states (K)",
@@ -211,3 +213,43 @@ p_ll <- ggplot(loglik_gc_summary, aes(x = K)) +
 
 ggsave(filename = file.path(output_dir, "gc_loglik_vs_K.png"),
        plot = p_ll, width = 9, height = 6, dpi = 150)
+
+
+
+
+
+
+
+
+## pick the K = 5 fit ----------------------------------------------------
+k5_idx  <- which(states == 5)    
+fit_k5  <- fits_gc[[k5_idx]]
+## get means ------
+mu_draws <- fit_k5$estimates$mean   
+mu_draws
+## get sd 
+fit_k5[["estimates"]][["sd"]]
+
+
+
+
+
+
+win_state <- fit_k5$estimates$posterior_states     # length = n_windows
+
+## counts and proportions
+tbl_windows <- table(win_state)                    # counts per state
+prop_windows <- prop.table(tbl_windows)            # proportions (0‒1)
+
+## 3. make it neat
+prop_df <- data.frame(
+  state      = as.integer(names(tbl_windows)),
+  n_windows  = as.integer(tbl_windows),
+  proportion = as.numeric(prop_windows)
+)
+prop_df
+
+
+#### Genome-wide track  
+gc_df$state <- fit_k5$estimates$posterior_states 
+
