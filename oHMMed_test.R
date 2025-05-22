@@ -103,7 +103,7 @@ fit_gc <- hmm_mcmc_normal(
   prior_T      = prior_T_gc,
   prior_means  = prior_means,
   prior_sd     = prior_sd,
-  iter         = 1500,
+  iter         = 100,
   warmup       =   20,
   thin         =    10,
   print_params = FALSE,
@@ -289,3 +289,83 @@ genome_track <- ggplot(gc_df, aes(x = start/1e6,            # Mb on x-axis
 
 ggsave(filename = file.path(output_dir, "Genome-wide track.png"),
        plot = genome_track, width = 9, height = 6, dpi = 150)
+
+
+
+
+
+
+##############################################################################
+# 7b.  SWEEP OVER K  FOR SNV COUNTS   +   SAVE EVERY EXTRA PLOT
+##############################################################################
+states_counts <- 2:9
+fits_counts   <- vector("list", length(states_counts))
+
+for (i in seq_along(states_counts)) {
+  k <- states_counts[i]
+  message("◆ Fitting SNV counts, K = ", k)
+  set.seed(100 + k)
+  
+  # rebuild priors for this k
+  mean_q_k        <- quantile(counts_raw,
+                              probs = seq(0.1, 0.9, length.out = k),
+                              names = FALSE)
+  prior_betas_k   <- prior_alpha / sort(pmax(mean_q_k, 10), decreasing = TRUE)
+  prior_T_counts_k <- generate_random_T(k, self = 0.85)
+  
+  
+  # fit the gamma–Poisson HMM
+  fits_counts[[i]] <- hmm_mcmc_gamma_poisson(
+    data         = counts_raw,
+    prior_T      = prior_T_counts_k,
+    prior_betas  = prior_betas_k,
+    prior_alpha  = prior_alpha,
+    iter         = 800,
+    warmup       = 160,
+    thin         = 10,
+    print_params = FALSE,
+    verbose      = FALSE
+  )
+  
+  # save diagnostic plot
+  png(file.path(output_dir,
+                sprintf("diagnostics_counts_K%02d.png", k)),
+      width = 1600, height = 1200, res = 150)
+  plot(fits_counts[[i]],
+       main = sprintf("oHMMed diagnostics — SNV counts, K = %d", k))
+  dev.off()
+}
+
+# --- log-likelihood summary figure for SNV counts ----------------------------
+loglik_counts_summary <- data.frame(
+  K        = states_counts,
+  MeanLL   = vapply(fits_counts,
+                    function(f) mean(f$estimates$log_likelihood),
+                    numeric(1)),
+  MedianLL = vapply(fits_counts,
+                    function(f) median(f$estimates$log_likelihood),
+                    numeric(1))
+)
+
+library(ggplot2)
+p_ll_counts <- ggplot(loglik_counts_summary, aes(x = K)) +
+  geom_line(aes(y = MeanLL,   color = "Mean"),    linewidth = 1) +
+  geom_point(aes(y = MeanLL,   color = "Mean"),   size = 2) +
+  geom_line(aes(y = MedianLL, color = "Median"),
+            linetype = "dashed", linewidth = 1) +
+  geom_point(aes(y = MedianLL, color = "Median"), size = 2) +
+  scale_x_continuous(breaks = states_counts) +
+  scale_color_manual(values = c(Mean = "steelblue",
+                                Median = "darkorange")) +
+  labs(
+    title = "Breast-cancer SNV counts: mean / median log-likelihood vs. K",
+    x     = "Number of hidden states (K)",
+    y     = "Log-likelihood"
+  ) +
+  theme_bw()
+
+ggsave(filename = file.path(output_dir, "counts_loglik_vs_K.png"),
+       plot    = p_ll_counts,
+       width   = 9,
+       height  = 6,
+       dpi     = 150)
