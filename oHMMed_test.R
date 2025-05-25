@@ -90,8 +90,8 @@ fit_snv <- hmm_mcmc_gamma_poisson(
   prior_T      = prior_T_counts,
   prior_betas  = prior_betas,
   prior_alpha  = prior_alpha,
-  iter         = 100,
-  warmup       =   20,
+  iter         = 8000,
+  warmup       =   200,
   thin         =    10,
   print_params = FALSE,
   verbose      = TRUE
@@ -103,8 +103,8 @@ fit_gc <- hmm_mcmc_normal(
   prior_T      = prior_T_gc,
   prior_means  = prior_means,
   prior_sd     = prior_sd,
-  iter         = 100,
-  warmup       =   20,
+  iter         = 8000,
+  warmup       =   2000,
   thin         =    10,
   print_params = FALSE,
   verbose      = TRUE
@@ -173,7 +173,7 @@ for (i in seq_along(states)) {
                                  probs = seq(0.1, 0.9, length.out = k),
                                  names = FALSE)),
     prior_sd     = prior_sd,
-    iter         = 800, warmup = 160, thin = 10,
+    iter         = 8000, warmup = 2000, thin = 10,
     print_params = FALSE, verbose = FALSE
   )
 
@@ -320,8 +320,8 @@ for (i in seq_along(states_counts)) {
     prior_T      = prior_T_counts_k,
     prior_betas  = prior_betas_k,
     prior_alpha  = prior_alpha,
-    iter         = 800,
-    warmup       = 160,
+    iter         = 8000,
+    warmup       = 2000,
     thin         = 10,
     print_params = FALSE,
     verbose      = FALSE
