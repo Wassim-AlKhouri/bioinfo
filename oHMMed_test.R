@@ -369,3 +369,88 @@ ggsave(filename = file.path(output_dir, "counts_loglik_vs_K.png"),
        width   = 9,
        height  = 6,
        dpi     = 150)
+
+
+
+
+
+##### plot #### 
+
+
+
+
+k <- 5
+message("◆ Fitting SNV counts, K = ", k)
+set.seed(100 + k)
+
+# rebuild priors for this k
+mean_q_k        <- quantile(counts_raw,
+                            probs = seq(0.1, 0.9, length.out = k),
+                            names = FALSE)
+prior_betas_k   <- prior_alpha / sort(pmax(mean_q_k, 10), decreasing = TRUE)
+prior_T_counts_k <- generate_random_T(k, self = 0.85)
+
+
+# fit the gamma–Poisson HMM
+fits_counts <- hmm_mcmc_gamma_poisson(
+  data         = counts_raw,
+  prior_T      = prior_T_counts_k,
+  prior_betas  = prior_betas_k,
+  prior_alpha  = prior_alpha,
+  iter         = 8000,
+  warmup       = 2000,
+  thin         = 10,
+  print_params = FALSE,
+  verbose      = FALSE
+)
+
+
+
+snv_df$state <- fits_counts$estimates$posterior_states 
+
+
+## 2. choose a colour for every state  (low → high SNV burden)
+state_cols_snv <- c("1" = "#D4B9DA",   # pale
+                    "2" = "#C994C7",
+                    "3" = "#DF65B0",
+                    "4" = "#CE1256",
+                    "5" = "#660033")   # dark
+
+
+
+
+
+bed_snv <- snv_df |>
+  dplyr::transmute(seqnames,
+                   start,
+                   end,
+                   name       = paste0("S", state),
+                   score      = 0,
+                   strand     = "+",
+                   thickStart = start,
+                   thickEnd   = end,
+                   itemRgb    = state_cols_snv[as.character(state)])
+
+write.table(bed_snv,
+            file = "data/treated data/breast_cancer/TCGA-BH-A201-01A-11D-A14K-09_oHMMed_K5_SNV.bed",
+            sep  = "\t", quote = FALSE, row.names = FALSE)
+
+## 4. quick chromosomal heat-strip
+##    – keeps the y-order you already have in snv_df$seqnames
+snv_track <- ggplot(snv_df,
+                    aes(x   = start/1e6,     # Mb
+                        y   = factor(seqnames, levels = rev(unique(seqnames))),
+                        fill = factor(state))) +
+  geom_tile(height = 0.8) +
+  scale_fill_manual(values = state_cols_snv,
+                    name   = "SNV state") +
+  labs(x = "Chromosomal position (Mb)",
+       y = NULL,
+       title = "five-state SNV segmentation (100 kb windows)") +
+  theme_bw() +
+  theme(panel.spacing.y = unit(0.1, "lines"),
+        axis.text.y     = element_text(size = 9),
+        legend.position = "right")
+
+ggsave(file.path(output_dir, "Genome-wide_SNV_track.png"),
+       snv_track, width = 9, height = 6, dpi = 150)
