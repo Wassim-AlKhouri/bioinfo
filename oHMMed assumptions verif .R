@@ -1,7 +1,3 @@
-
-
-
-
 ################# Article verification ############
 
 df <- read.table("data/original/GenomeAnnotations (paper)/GenomeAnnotations/MouseAnnotation.txt",
@@ -25,9 +21,6 @@ set.seed(2)
 gc.sub <- sample(gc, 5000)
 shapiro.test(gc.sub)
 
-
-
-
 # expecting same result has in the article mouse var = 0.00055 
 var_d_gc  <- var(d_gc)
 var_d_gc
@@ -45,10 +38,7 @@ data <- read.table('data/treated data/breast_cancer/snv_counts_100kb_windows_TCG
 counts <- data$snv_count
 counts_log <- log1p(counts)
 
-
-
 # distribution
-
 hist(counts_log,
      breaks = 20,               # number of bins; adjust to taste
      freq   = FALSE,           # density rather than counts
@@ -82,8 +72,6 @@ hist(d_rand,
      border = "white",          # white outline
      add    = TRUE)
 
-
-
 for(i in 1:5){
   set.seed(123+i)
   d_rand   <- diff(sample(counts))
@@ -92,17 +80,7 @@ for(i in 1:5){
   print(var_rand)
   print(ft)
 }
-
-# we want var_obs < var_rand  and p-val << 0.05 -> 
-# alternative hypothesis: true ratio of variances is not equal to 1
-
-
-
-
 ####################### arabidopsis ##################
-
-
-
 data <- read.table('data/treated data/Arabidopsis/TAIR10_chr1-5_GC_100KB.tsv',
                    sep = "\t",header = TRUE )
 counts <- data$GC_prop
@@ -141,8 +119,6 @@ hist(d_rand,
      col    = rgb(1,1,1,0.4),   # semi-transparent white
      border = "white",          # white outline
      add    = TRUE)
-
-
 
 for(i in 1:5){
   set.seed(123+i)
