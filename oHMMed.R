@@ -126,7 +126,7 @@ plot(fit_gc,  main = "oHMMed diagnostics — GC (K = 4)")
 dev.off()
 
 ## ───── 5b. ggmcmc trace plots ──────────────────────────────────────────────
-library(ggmcmc)
+
 
 p_beta  <- ggs_traceplot(convert_to_ggmcmc(fit_snv, pattern = "beta"))
 p_mean  <- ggs_traceplot(convert_to_ggmcmc(fit_gc,  pattern = "mean"))
@@ -193,7 +193,7 @@ loglik_gc_summary <- data.frame(
                     numeric(1))
 )
 
-library(ggplot2)
+
 p_ll <- ggplot(loglik_gc_summary, aes(x = K)) +
           geom_line(aes(y = MeanLL, color = "Mean"),    linewidth = 1) +        # <- linewidth!
           geom_point(aes(y = MeanLL, color = "Mean"),   size = 2) +
@@ -398,7 +398,7 @@ write.table(bed_snv,
             file = "data/treated data/breast_cancer/TCGA-BH-A201-01A-11D-A14K-09_oHMMed_K5_SNV.bed",
             sep  = "\t", quote = FALSE, row.names = FALSE)
 
-## quick chromosomal heat-strip keeps the y-order you already have in snv_df$seqnames
+## quick chromosomal heat-strip keeps the y-order in snv_df$seqnames
 snv_track <- ggplot(snv_df,
                     aes(x   = start/1e6,     # Mb
                         y   = factor(seqnames, levels = rev(unique(seqnames))),
