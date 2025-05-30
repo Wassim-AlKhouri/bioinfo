@@ -62,4 +62,3 @@ BiocManager::install(c(
 | `oHMMed.R` | Uses the tables created by `Data formating.R` |
 
 Decompress the data in `data/original/breast cancer (cohort)` and `data/original/Arabidopsis (TAIR)` directories before running the scripts.
----
