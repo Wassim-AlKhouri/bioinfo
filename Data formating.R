@@ -21,14 +21,13 @@ snvs <- data.frame(
 )
 
 # Create 100 kb tiling of the autosomes
-#    adjust seqlevelsStyle to match your assembly (“chr1” vs “1”)
 bins <- tileGenome(
   seqlengths = seqlengths(BSgenome.Hsapiens.UCSC.hg38)[paste0("chr",1:22)],  # to get only the autosomes
   tilewidth  = 100e3,
-  cut.last.tile.in.chrom = TRUE # drop if samaler than 100 kb at the end of each chromo 
+  cut.last.tile.in.chrom = TRUE # drop if smaller than 100 kb at the end of each chromo 
 )
 
-# Turn your SNV list into a GRanges
+# Turn SNV list into a GRanges
 snv_gr <- GRanges(
   seqnames = snvs$chr,
   ranges   = IRanges(start=snvs$pos, end = snvs$pos)
@@ -59,7 +58,6 @@ write.table(
 
 ######### for arabidopsis #########
 
-# BiocManager::install("BSgenome.Athaliana.TAIR.TAIR10")
 if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 
@@ -68,8 +66,7 @@ if (!requireNamespace("Biostrings", quietly = TRUE))
 
 library(Biostrings)   # fast, memory‑efficient DNA manipulation
 library(IRanges)      # simple range arithmetic
-library(dplyr)        # nice tabular summaries (optional)
-# library(BSgenome.Athaliana.TAIR.TAIR10)
+library(dplyr)        # nice tabular summaries
 
 fasta_file <- 'data/original/Arabidopsis (TAIR)/TAIR10_chr_all.fas'
 chr <- readDNAStringSet(fasta_file)
@@ -83,7 +80,7 @@ nuclear
 gc_windows <- function(dna, chr_name, bin = 1e5) {
   starts  <- seq(1, length(dna), by = bin)
   ranges  <- IRanges(starts, width = pmin(bin, length(dna) - starts + 1))
-  v       <- Views(dna, ranges)                       # plus rapide que lapply
+  v       <- Views(dna, ranges)                       
   gc      <- rowSums(letterFrequency(v, c("G", "C")))
   
   tibble(chr       = chr_name,
